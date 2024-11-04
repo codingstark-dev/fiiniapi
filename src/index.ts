@@ -56,7 +56,7 @@ const app = new Elysia()
       // .get("/stock/:symbol/analysis", analyzeStock)
       .get("/stock/:symbol/corporate/:type", getCorporateInfo)
   )
-  .listen(3005);
+  .listen(3000);
 
 console.log(
   `🦊 NSE Scraper running at https://${app.server?.hostname}:${app.server?.port}`
