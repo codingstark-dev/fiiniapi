@@ -5,7 +5,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
-    "build": "bun-vercel ./src/main.ts"
+    "build": "bun-vercel src/index.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.1.1",
