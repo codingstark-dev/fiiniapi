@@ -1,7 +1,7 @@
 import { Elysia } from "elysia";
 import { swagger } from "@elysiajs/swagger";
 import { cors } from "@elysiajs/cors";
-import { rateLimit } from "elysia-rate-limit";
+// import { rateLimit } from "elysia-rate-limit";
 import {
   getStockPrice,
   getMarketMovers,
@@ -35,12 +35,12 @@ const app = new Elysia()
     })
   )
   .use(cors())
-  .use(
-    rateLimit({
-      max: 100,
-      // window: "1m",
-    })
-  )
+  // .use(
+  //   rateLimit({
+  //     max: 100,
+  //     // window: "1m",
+  //   })
+  // )
   .use(ErrorHandler)
   .group("/api", (app) =>
     app
