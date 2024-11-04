@@ -25,19 +25,31 @@ const getNSEHeaders = async ({ symbol }: { symbol: string }) => {
     "sec-fetch-dest": "empty",
     "sec-fetch-mode": "cors",
     "sec-fetch-site": "same-origin",
-    "user-agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
   };
 
-  const homepageResponse = await fetch("https://www.nseindia.com/");
+  try {
+    const homepageResponse = await fetch("https://www.nseindia.com/", {
+      headers: {
+        ...headers,
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "none",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1"
+      }
+    });
 
-  const homepageCookies =
-    homepageResponse.headers.get("set-cookie")?.split(",") || [];
-  if (homepageCookies) {
-    headers["cookie"] = homepageCookies.join("; ");
+    const cookies = homepageResponse.headers.getSetCookie();
+    if (cookies && cookies.length > 0) {
+      headers["cookie"] = cookies.join("; ");
+    }
+
+    return headers;
+  } catch (error) {
+    console.error("Error fetching NSE headers:", error);
+    throw error;
   }
-
-  return headers;
 };
 
 export const getStockPrice = async ({
@@ -61,23 +73,34 @@ export const getStockPrice = async ({
 };
 
 export const getMarketMovers = async () => {
-  const cacheKey = "market:movers";
-  const cached = cache.get(cacheKey);
-  if (cached) return cached;
-
-  const headers = await getNSEHeaders({ symbol: "NIFTY" });
-  const [gainers, losers] = await Promise.all([
-    fetchWithRetry(NSE_ENDPOINTS.GAINERS, { headers }),
-    fetchWithRetry(NSE_ENDPOINTS.LOSERS, { headers }),
-  ]);
-
-  const movers: MarketMovers = {
-    gainers: await gainers.json(),
-    losers: await losers.json(),
-  };
-
-  cache.set(cacheKey, movers); // Cache for 5 minutes
-  return movers;
+  try {
+    const cacheKey = "market:movers";
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+  
+    const headers = await getNSEHeaders({ symbol: "NIFTY" });
+    const [gainers, losers] = await Promise.all([
+      fetch("https://www.nseindia.com/api/liveanalysis/gainers/allSec", {
+        headers,
+        credentials: "include",
+      }),
+      fetch("https://www.nseindia.com/api/liveanalysis/loosers/allSec", {
+        headers,
+        credentials: "include",
+      }),
+    ]);
+  
+    const movers: MarketMovers = {
+      gainers: await gainers.json(),
+      losers: await losers.json(),
+    };
+  
+    cache.set(cacheKey, movers); // Cache for 5 minutes
+    return movers;
+  } catch (error) {
+    console.log(error);
+    return { error: true, message: (error as Error).message, code: 500 };
+  }
 };
 
 export const getAllIndices = async () => {

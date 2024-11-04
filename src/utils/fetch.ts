@@ -6,15 +6,21 @@ export const fetchWithRetry = async (
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, options);
-      if (!response.ok)
+      
+      if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       return response;
     } catch (error) {
+      console.error(`Attempt ${i + 1} failed:`, error);
+      
       if (i === retries - 1) throw error;
-      await new Promise((resolve) =>
-        setTimeout(resolve, 1000 * Math.pow(2, i))
-      );
+      
+      // Exponential backoff
+      const delay = 1000 * Math.pow(2, i);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
-  throw new Error("Max retries exceeded");
+  throw new Error(`Failed after ${retries} retries`);
 };

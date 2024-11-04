@@ -5,12 +5,11 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
-    "build": "bun-vercel src/index.ts"
+    "deploy": "wrangler deploy --minify src/index.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.1.1",
     "@elysiajs/swagger": "^1.1.5",
-    "bun-vercel": "^1.0.0-alpha.5",
     "elysia": "latest",
     "elysia-rate-limit": "^4.1.0",
     "lru-cache": "^11.0.2",
