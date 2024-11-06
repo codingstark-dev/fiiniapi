@@ -1,11 +1,12 @@
 {
-  "name": "fiiniapi",
-  "version": "1.0.50",
+  "name": "stock-api",
+  "private": true,
+  "version": "1.0.0",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "bun run --watch src/index.ts",
+    "dev": "wrangler dev src/index.ts",
     "start": "vercel dev",
-    "deploy": "vercel"
+    "deploy": "wrangler deploy src/index.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.5",
@@ -14,6 +15,7 @@
     "wrangler": "^3.84.1"
   },
   "devDependencies": {
-    "bun-types": "latest"
+    "bun-types": "latest",
+    "@cloudflare/workers-types": "^4.20241022.0"
   }
 }

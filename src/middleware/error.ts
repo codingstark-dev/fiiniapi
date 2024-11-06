@@ -7,7 +7,7 @@ export const errorHandler = async (c: Context, next: Next) => {
     console.error(`[ERROR]`, error);
     return c.json({
       error: true,
-      message: error.message,
+      message: error.message || 'Internal Server Error',
       code: error.status || 500,
     }, error.status || 500);
   }

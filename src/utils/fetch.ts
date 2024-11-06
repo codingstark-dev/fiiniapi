@@ -5,7 +5,19 @@ export const fetchWithRetry = async (
 ) => {
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(url, {
+        ...options,
+        // Add required headers for bypassing Cloudflare protection
+        headers: {
+          ...options.headers,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        },
+        // cf: {
+        //   // Cloudflare specific options
+        //   cacheTtl: 300, // 5 minutes cache
+        //   cacheEverything: true
+        // }
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
