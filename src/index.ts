@@ -1,31 +1,56 @@
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { cache } from './utils/cache';
-import { getStockPrice,
-getAllIndices,
-getCorporateInfo,
-getIpoDetails,
-getMarketMovers,
+// import { handleCors } from './utils/cors';
+import { 
+  getStockPrice,
+  getAllIndices,
+  getIpoDetails
+} from './controllers/stock';
+import { ExecutionContext } from '@cloudflare/workers-types/experimental';
+import { handleCors } from './utils/cors';
 
+export interface Env {}
 
+async function handleRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  // Handle CORS
+  if (request.method === 'OPTIONS') {
+    return handleCors(request);
+  }
 
- } from './controllers/stock';
-import { errorHandler } from './middleware/error';
-import { timeoutMiddleware } from './middleware/timeout';
+  const url = new URL(request.url);
+  
+  try {
+    // Route matching
+    if (url.pathname === '/') {
+      return new Response(JSON.stringify({ message: 'Welcome to the Stock API' }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
-const app = new Hono();
+    if (url.pathname.match(/^\/api\/stock\/[\w-]+\/price$/)) {
+      const symbol = url.pathname.split('/')[3];
+      return await getStockPrice(symbol);
+    }
 
-// Middleware
-app.use('*', cors());
-app.use('*', errorHandler);
-app.use('*', timeoutMiddleware);
+    if (url.pathname.match(/^\/api\/stock\/[\w-]+\/ipo$/)) {
+      const symbol = url.pathname.split('/')[3];
+      return await getIpoDetails(symbol);
+    }
 
-// Routes
-app.get('/', (c) => c.json({ message: 'Welcome to the Stock API' }));
-app.get('/api/stock/:symbol/price', getStockPrice);
-//localhost:8787/api/stock/:symbol/ipo
-app.get('/api/stock/:symbol/ipo', getIpoDetails);
-// http://localhost:3005/api/market/indices
-app.get('/api/market/indices', getAllIndices);
+    if (url.pathname === '/api/market/indices') {
+      return await getAllIndices();
+    }
 
-export default app;
+    return new Response('Not Found', { status: 404 });
+  } catch (error) {
+    return new Response(JSON.stringify({ 
+      error: true, 
+      message: error instanceof Error ? error.message : 'Internal Server Error'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+export default {
+  fetch: handleRequest
+};
