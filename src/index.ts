@@ -14,30 +14,42 @@ export const runtime = "edge";
 // Initialize cache
 setupCache();
 
-// Create Hono app
-const app = new Hono();
+// Create Elysia app
+const app = new Elysia()
+  .use(
+    swagger({
+      documentation: {
+        info: {
+          title: "NSE Stock API",
+          version: "1.0.0",
+        },
+      },
+    })
+  )
+  .use(cors())
+  // .use(
+  //   rateLimit({
+  //     max: 100,
+  //     // window: "1m",
+  //   })
+  // )
+  .use(ErrorHandler)
+  .group("/api", (app) =>
+    app
+      .get("/stock/:symbol/price", getStockPrice)
+      .get("/market/movers", getMarketMovers)
+      .get("/market/indices", getAllIndices)
+      .get("/stock/:symbol/ipo", getIpoDetails)
+      // .get("/ipo/current", getCurrentIpos)
+      // .get("/ipo/past", getPastIpos)
+      // .get("/stock/:symbol/board", getBoardMembers)
+      // .get("/stock/:symbol/annual-report", getAnnualReport)
+      // .get("/stock/:symbol/news", getStockNews)
+      // .get("/stock/:symbol/analysis", analyzeStock)
+      .get("/stock/:symbol/corporate/:type", getCorporateInfo)
+  )
+  .listen(3002);
 
-// Middleware
-app.use('*', cors());
-app.use('*', errorHandler);
-app.get('/', (c) => {
-  return c.json({ message: 'Welcome to the Stock API' });
-})
-// Routes
-app.get('/api/stock/:symbol/price', getStockPrice);
-// app.get('/api/market/movers', getMarketMovers);
-// app.get('/api/market/indices', getAllIndices);
-// app.get('/api/stock/:symbol/ipo', getIpoDetails);
-// app.get('/api/stock/:symbol/corporate/:type', getCorporateInfo);
-showRoutes(
-  app,{
-    verbose: true,
-    colorize: true,
-  }
-)
-// export default {
-//   port: 3002,
-//   fetch: app.fetch,
-// };
-export const GET = handle(app,);
-export const POST = handle(app);
+console.log(
+  `🦊 NSE Scraper running at https://${app.server?.hostname}:${app.server?.port}`
+);
