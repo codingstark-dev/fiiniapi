@@ -20,7 +20,9 @@ const app = new Hono();
 // Middleware
 app.use('*', cors());
 app.use('*', errorHandler);
-
+app.get('/', (c) => {
+  return c.json({ message: 'Welcome to the Stock API' });
+})
 // Routes
 app.get('/api/stock/:symbol/price', getStockPrice);
 // app.get('/api/market/movers', getMarketMovers);
