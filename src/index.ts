@@ -7,7 +7,7 @@ import { getStockPrice,
 import { errorHandler } from './middleware/error';
 import { setupCache } from './utils/cache';
 import { getRouterName, showRoutes } from "hono/dev";
-import { handle } from "hono/vercel";
+import { handle } from "@hono/node-server/vercel";
 
 export const runtime = "edge";
 
