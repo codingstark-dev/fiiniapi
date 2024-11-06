@@ -1,23 +1,15 @@
-import { Elysia } from "elysia";
-import { swagger } from "@elysiajs/swagger";
-import { cors } from "@elysiajs/cors";
-// import { rateLimit } from "elysia-rate-limit";
-import {
-  getStockPrice,
-  getMarketMovers,
-  getAllIndices,
-  getIpoDetails,
-  getCorporateInfo,
-  // getCurrentIpos,
-  // getPastIpos,
-  // getBoardMembers,
-  // getAnnualReport,
-  // getStockNews,
-  // analyzeStock,
-  // getCorporateInfo,
-} from "./controllers/stock";
-import { ErrorHandler } from "./middleware/error";
-import { setupCache } from "./utils/cache";
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { getStockPrice, 
+  
+  // getMarketMovers, getAllIndices, getIpoDetails, getCorporateInfo 
+} from './controllers/stock';
+import { errorHandler } from './middleware/error';
+import { setupCache } from './utils/cache';
+import { getRouterName, showRoutes } from "hono/dev";
+import { handle } from "@hono/node-server/vercel";
+
+export const runtime = "edge";
 
 // Initialize cache
 setupCache();
