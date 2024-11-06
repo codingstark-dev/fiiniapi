@@ -1702,28 +1702,42 @@ var withTimeout = /* @__PURE__ */ __name(async (promise, timeoutMs = 3e4) => {
 }, "withTimeout");
 
 // src/utils/custom-fetch.ts
-var customFetch = /* @__PURE__ */ __name(async (url, options = {}) => {
+var MAX_RETRIES = 3;
+var RETRY_DELAY = 1e3;
+var sleep = /* @__PURE__ */ __name((ms) => new Promise((resolve) => setTimeout(resolve, ms)), "sleep");
+var customFetch = /* @__PURE__ */ __name(async (url, options = {}, retries = MAX_RETRIES) => {
   const timeoutMs = 3e4;
   const enhancedOptions = {
     ...options,
     headers: {
       ...options.headers,
-      "Accept": "application/json",
+      "Accept": "*/*",
+      "Accept-Language": "en-US,en;q=0.9",
       "Cache-Control": "no-cache",
       "Pragma": "no-cache",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      "DNT": "1",
+      "Connection": "keep-alive"
     },
     redirect: "follow"
   };
   try {
     const response = await withTimeout(fetch(url, enhancedOptions), timeoutMs);
     if (!response.ok) {
+      if (retries > 0 && [429, 503, 502, 500].includes(response.status)) {
+        await sleep(RETRY_DELAY);
+        return customFetch(url, options, retries - 1);
+      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     return response;
   } catch (error) {
     if (error instanceof TimeoutError) {
-      throw new Error("Request timed out. The server is taking too long to respond.");
+      if (retries > 0) {
+        await sleep(RETRY_DELAY);
+        return customFetch(url, options, retries - 1);
+      }
+      throw new Error("Request timed out after multiple attempts");
     }
     throw error;
   }
@@ -1742,39 +1756,41 @@ var NSE_ENDPOINTS = {
 };
 
 // src/controllers/stock.ts
-var getNSEHeaders = /* @__PURE__ */ __name(async () => {
-  const baseHeaders = {
-    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
-    "cache-control": "max-age=0",
-    "dnt": "1",
-    "sec-ch-ua": '"Not?A_Brand";v="99", "Chromium";v="130"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"macOS"',
-    "sec-fetch-dest": "document",
-    "sec-fetch-mode": "navigate",
-    "sec-fetch-site": "none",
-    "sec-fetch-user": "?1",
-    "upgrade-insecure-requests": "1",
-    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+var getCookies = /* @__PURE__ */ __name(async () => {
+  const url = "https://www.nseindia.com/market-data/live-market-indices";
+  const init = {
+    headers: {
+      "Host": "www.nseindia.com",
+      "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
+      "Accept-Encoding": "gzip, deflate, br",
+      "DNT": "1",
+      "Connection": "keep-alive",
+      "Upgrade-Insecure-Requests": "1"
+    }
   };
   try {
-    const homepageResponse = await fetch("https://www.nseindia.com/", {
-      headers: baseHeaders,
-      redirect: "follow"
-    });
-    if (!homepageResponse.ok) {
-      throw new Error(`Failed to fetch NSE homepage: ${homepageResponse.status}`);
-    }
-    const cookies = homepageResponse.headers.getSetCookie();
-    if (cookies && cookies.length > 0) {
-      baseHeaders["cookie"] = cookies.join("; ");
-    }
-    return baseHeaders;
+    const response = await fetch(url, init);
+    const cookies = response.headers.get("set-cookie")?.split(",").map((cookie) => cookie.split(";")[0].trim()).join("; ");
+    return cookies;
   } catch (error) {
-    console.error("Error fetching NSE headers:", error);
-    throw error;
+    console.error("Error fetching cookies:", error);
+    return null;
   }
+}, "getCookies");
+var getNSEHeaders = /* @__PURE__ */ __name(async () => {
+  const cookies = await getCookies();
+  return {
+    "accept": "*/*",
+    "accept-language": "en-US,en;q=0.9",
+    "Content-Type": "application/json",
+    "user-agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0",
+    "DNT": "1",
+    "Connection": "keep-alive",
+    "cookie": cookies || "",
+    "Host": "www.nseindia.com"
+  };
 }, "getNSEHeaders");
 var getStockPrice = /* @__PURE__ */ __name(async (c) => {
   const symbol = c.req.param("symbol");
@@ -1799,18 +1815,27 @@ var getAllIndices = /* @__PURE__ */ __name(async (c) => {
     if (cached)
       return c.json(cached);
     const headers = await getNSEHeaders();
-    const response = await customFetch(
+    const response = await fetch(
       NSE_ENDPOINTS.INDICES,
       {
         headers,
         method: "GET"
       }
     );
+    console.log(response);
     if (!response.ok) {
       throw new Error(`Failed to fetch indices: ${response.status}`);
     }
-    const indices = await response.json();
-    cache.set(cacheKey, indices);
+    const data = await response.json();
+    const indices = data.indices?.map((index) => ({
+      indexSymbol: index.indexSymbol,
+      indexName: index.indexName,
+      last: index.last,
+      percentChange: index.percentChange,
+      variation: index.variation,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    })) || [];
+    cache.set(cacheKey, indices, 5 * 60);
     return c.json(indices);
   } catch (error) {
     console.error("Error fetching indices:", error);
@@ -1826,9 +1851,10 @@ var getIpoDetails = /* @__PURE__ */ __name(async (c) => {
   const cached = cache.get(cacheKey);
   if (cached)
     return c.json(cached);
+  const headers = await getNSEHeaders();
   const bidDetails = await customFetch(
-    `https://www.nseindia.com/api/ipo-detail?symbol=${symbol}&series=EQ`
-    // { headers }
+    `https://www.nseindia.com/api/ipo-detail?symbol=${symbol}&series=EQ`,
+    { headers }
   );
   const ipoDetails = await bidDetails.json();
   cache.set(cacheKey, ipoDetails);

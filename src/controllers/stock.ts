@@ -9,70 +9,45 @@ import type {
   IpoDetails,
 } from "../types";
 
-// const getNSEHeaders = async ({ symbol }: { symbol: string }) => {
-//   return {
-//     accept: "*/*",
-//     "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
-//     dnt: "1",
-//     referer: `https://www.nseindia.com/get-quotes/equity?symbol=${symbol}`,
-//     "sec-ch-ua": '"Not?A_Brand";v="99", "Chromium";v="130"',
-//     "sec-ch-ua-mobile": "?0",
-//     "sec-ch-ua-platform": '"macOS"',
-//     "sec-fetch-dest": "empty",
-//   };
-// };
-const getNSEHeaders = async () => {
-  const baseHeaders: { 
-    accept: string; 
-    'accept-language': string; 
-    'cache-control': string; 
-    dnt: string; 
-    'sec-ch-ua': string; 
-    'sec-ch-ua-mobile': string; 
-    'sec-ch-ua-platform': string; 
-    'sec-fetch-dest': string; 
-    'sec-fetch-mode': string; 
-    'sec-fetch-site': string; 
-    'sec-fetch-user': string; 
-    'upgrade-insecure-requests': string; 
-    'user-agent': string; 
-    cookie?: string 
-  } = {
-    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
-    'cache-control': 'max-age=0',
-    'dnt': '1',
-    'sec-ch-ua': '"Not?A_Brand";v="99", "Chromium";v="130"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"macOS"',
-    'sec-fetch-dest': 'document',
-    'sec-fetch-mode': 'navigate',
-    'sec-fetch-site': 'none',
-    'sec-fetch-user': '?1',
-    'upgrade-insecure-requests': '1',
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+const getCookies = async () => {
+  const url = 'https://www.nseindia.com/market-data/live-market-indices';
+  const init: RequestInit = {
+    headers: {
+      'Host': 'www.nseindia.com',
+      'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'DNT': '1',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+    },
   };
 
   try {
-    const homepageResponse = await fetch("https://www.nseindia.com/", {
-      headers: baseHeaders,
-      redirect: 'follow'
-    });
-
-    if (!homepageResponse.ok) {
-      throw new Error(`Failed to fetch NSE homepage: ${homepageResponse.status}`);
-    }
-
-    const cookies = homepageResponse.headers.getSetCookie();
-    if (cookies && cookies.length > 0) {
-      baseHeaders['cookie'] = cookies.join('; ');
-    }
-
-    return baseHeaders;
+    const response = await fetch(url, init);
+    const cookies = response.headers.get('set-cookie')?.split(',')
+      .map(cookie => cookie.split(';')[0].trim())
+      .join('; ');
+    return cookies;
   } catch (error) {
-    console.error("Error fetching NSE headers:", error);
-    throw error;
+    console.error('Error fetching cookies:', error);
+    return null;
   }
+};
+
+const getNSEHeaders = async () => {
+  const cookies = await getCookies();
+  return {
+    'accept': '*/*',
+    'accept-language': 'en-US,en;q=0.9',
+    'Content-Type': 'application/json',
+    'user-agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0',
+    'DNT': '1',
+    'Connection': 'keep-alive',
+    'cookie': cookies || '',
+    'Host': 'www.nseindia.com'
+  };
 };
 
 export const getStockPrice = async (c: Context) => {
@@ -131,24 +106,33 @@ export const getAllIndices = async (c: Context) => {
     const cached = cache.get(cacheKey);
     if (cached) return c.json(cached);
 
-    // Get headers first
     const headers = await getNSEHeaders();
-      
-    // Fetch indices with proper headers
-    const response = await customFetch(
+    const response = await fetch(
       NSE_ENDPOINTS.INDICES,
       { 
         headers,
-        method: 'GET'
+        method: 'GET',
       }
     );
+    console.log(response);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch indices: ${response.status}`);
     }
 
-    const indices: AllIndices[] = await response.json();
-    cache.set(cacheKey, indices);
+    const data = await response.json();
+    
+    // Transform the data to match your AllIndices type
+    const indices: AllIndices[] = data.indices?.map((index: any) => ({
+      indexSymbol: index.indexSymbol,
+      indexName: index.indexName,
+      last: index.last,
+      percentChange: index.percentChange,
+      variation: index.variation,
+      timestamp: new Date().toISOString()
+    })) || [];
+
+    cache.set(cacheKey, indices, 5 * 60); // Cache for 5 minutes
     return c.json(indices);
   } catch (error) {
     console.error("Error fetching indices:", error);
@@ -165,10 +149,10 @@ export const getIpoDetails = async (c: Context) => {
   const cached = cache.get(cacheKey);
   if (cached) return c.json(cached);
 
-  // const headers = await getNSEHeaders({ symbol });
+  const headers = await getNSEHeaders();
   const bidDetails = await customFetch(
-    `https://www.nseindia.com/api/ipo-detail?symbol=${symbol}&series=EQ`
-    // { headers }
+    `https://www.nseindia.com/api/ipo-detail?symbol=${symbol}&series=EQ`,
+    { headers }
   );
 
   const ipoDetails: IpoDetails = await bidDetails.json();
