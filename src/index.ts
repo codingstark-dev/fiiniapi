@@ -7,6 +7,9 @@ import { getStockPrice,
 import { errorHandler } from './middleware/error';
 import { setupCache } from './utils/cache';
 import { getRouterName, showRoutes } from "hono/dev";
+import { handle } from "hono/vercel";
+
+export const runtime = "edge";
 
 // Initialize cache
 setupCache();
@@ -30,7 +33,9 @@ showRoutes(
     colorize: true,
   }
 )
-export default {
-  port: 3002,
-  fetch: app.fetch,
-};
+// export default {
+//   port: 3002,
+//   fetch: app.fetch,
+// };
+export const GET = handle(app,);
+export const POST = handle(app);
